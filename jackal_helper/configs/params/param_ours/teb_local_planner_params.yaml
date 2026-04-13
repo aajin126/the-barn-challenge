@@ -60,6 +60,8 @@ TebLocalPlannerROS:
  # Optimization
 
  global_plan_viapoint_sep: 0.3
+ via_point_weight_mode: step
+ via_point_postprocess_mode: nms
  no_inner_iterations: 5
  no_outer_iterations: 4
  optimization_activate: True

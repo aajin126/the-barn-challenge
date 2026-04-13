@@ -46,6 +46,18 @@ void TebConfig::loadRosParamFromNodeHandle(const ros::NodeHandle& nh)
     
   nh.param("odom_topic", odom_topic, odom_topic);
   nh.param("map_frame", map_frame, map_frame);
+  nh.param("via_point_weight_mode", via_point_weight_mode, via_point_weight_mode);
+  if (via_point_weight_mode != "linear" && via_point_weight_mode != "step")
+  {
+    ROS_WARN_STREAM("Unknown via_point_weight_mode '" << via_point_weight_mode << "'. Falling back to 'linear'.");
+    via_point_weight_mode = "linear";
+  }
+  nh.param("via_point_postprocess_mode", via_point_postprocess_mode, via_point_postprocess_mode);
+  if (via_point_postprocess_mode != "nms" && via_point_postprocess_mode != "no_nms")
+  {
+    ROS_WARN_STREAM("Unknown via_point_postprocess_mode '" << via_point_postprocess_mode << "'. Falling back to 'nms'.");
+    via_point_postprocess_mode = "nms";
+  }
   
   // Trajectory
   nh.param("teb_autosize", trajectory.teb_autosize, trajectory.teb_autosize);

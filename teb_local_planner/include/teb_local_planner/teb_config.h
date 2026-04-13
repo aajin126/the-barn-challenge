@@ -65,6 +65,8 @@ public:
 
   std::string odom_topic; //!< Topic name of the odometry message, provided by the robot driver or simulator
   std::string map_frame; //!< Global planning frame
+  std::string via_point_weight_mode; //!< Via-point weight mode: linear or step
+  std::string via_point_postprocess_mode; //!< Via-point postprocess mode: nms or no_nms
 
   RobotFootprintModelPtr robot_model; //!< model of the robot's footprint
 
@@ -247,6 +249,8 @@ public:
 
     odom_topic = "odom";
     map_frame = "odom";
+    via_point_weight_mode = "linear";
+    via_point_postprocess_mode = "nms";
     robot_model = boost::make_shared<PointRobotFootprint>();
 
     // Trajectory

@@ -313,6 +313,14 @@ protected:
    * @return The optimization weight for the via-point
    */
   double calculateViaPointWeight(double medial_radius) const;
+  double calculateLinearViaPointWeight(double medial_radius) const;
+  double calculateStepViaPointWeight(double medial_radius) const;
+  void applyViaPointPostProcessing(const std::vector<std::pair<int, std::pair<Eigen::Vector2d, double>>>& indexed_medial_points,
+                                   const std::vector<double>& raw_weights);
+  void applyViaPointNMS(const std::vector<std::pair<int, std::pair<Eigen::Vector2d, double>>>& indexed_medial_points,
+                        const std::vector<double>& raw_weights);
+  void applyViaPointNoNMS(const std::vector<std::pair<int, std::pair<Eigen::Vector2d, double>>>& indexed_medial_points,
+                          const std::vector<double>& raw_weights);
 
    /**
     * @brief Prune global plan such that already passed poses are cut off

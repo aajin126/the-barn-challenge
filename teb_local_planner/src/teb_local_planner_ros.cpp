@@ -110,7 +110,7 @@ void TebLocalPlannerROS::initialize(std::string name, tf2_ros::Buffer* tf, costm
     ros::NodeHandle nh("~/" + name);
 	        
     // get parameters of TebConfig via the nodehandle and override the default config
-    cfg_.loadRosParamFromNodeHandle(nh);       
+    cfg_.loadRosParamFromNodeHandle(nh);
     
     // reserve some memory for obstacles
     obstacles_.reserve(500);
@@ -903,18 +903,39 @@ void TebLocalPlannerROS::updateCustomViaPointsContainer(const std::vector<geomet
     const int n = static_cast<int>(indexed_medial_points.size());
 
     // ------------------------------------------------------------
-    // Step 1. Compute raw weights
+    // Compute raw weights
     // ------------------------------------------------------------
     std::vector<double> raw_weights(n, 0.0);
     for (int i = 0; i < n; ++i)
     {
         double radius = indexed_medial_points[i].second.second;
         raw_weights[i] = calculateViaPointWeight(radius);
-        //ROS_INFO("Medial point %d: radius=%.2f, raw weight=%.2f", i, radius, raw_weights[i]);
     }
 
+    applyViaPointPostProcessing(indexed_medial_points, raw_weights);
+  }
+
+  void TebLocalPlannerROS::applyViaPointPostProcessing(
+    const std::vector<std::pair<int, std::pair<Eigen::Vector2d, double>>>& indexed_medial_points,
+    const std::vector<double>& raw_weights)
+  {
+    if (cfg_.via_point_postprocess_mode == "no_nms")
+    {
+      applyViaPointNoNMS(indexed_medial_points, raw_weights);
+      return;
+    }
+
+    applyViaPointNMS(indexed_medial_points, raw_weights);
+  }
+
+  void TebLocalPlannerROS::applyViaPointNMS(
+    const std::vector<std::pair<int, std::pair<Eigen::Vector2d, double>>>& indexed_medial_points,
+    const std::vector<double>& raw_weights)
+  {
+    const int n = static_cast<int>(indexed_medial_points.size());
+
     // ------------------------------------------------------------
-    // Step 2. Find local maxima in 1D sequence
+    // Step 1. Find local maxima in 1D sequence
     // A point is a local peak if its raw weight is not smaller than neighbors
     // ------------------------------------------------------------
     std::vector<int> peak_candidates;
@@ -937,18 +958,12 @@ void TebLocalPlannerROS::updateCustomViaPointsContainer(const std::vector<geomet
         {
             via_points_.emplace_back(indexed_medial_points[i].second.first);
             via_points_weights_.push_back(raw_weights[i]);
-
-            ROS_INFO("Via-point added (fallback): pos=(%.2f, %.2f), radius=%.2f, weight=%.2f",
-                      indexed_medial_points[i].second.first.x(),
-                      indexed_medial_points[i].second.first.y(),
-                      indexed_medial_points[i].second.second,
-                      raw_weights[i]);
         }
         return;
     }
 
     // ------------------------------------------------------------
-    // Step 3. Greedy Non-Maximum Suppression on peaks
+    // Step 2. Greedy Non-Maximum Suppression on peaks
     // Keep stronger peaks, suppress weaker nearby peaks
     // ------------------------------------------------------------
     std::sort(peak_candidates.begin(), peak_candidates.end(),
@@ -989,7 +1004,7 @@ void TebLocalPlannerROS::updateCustomViaPointsContainer(const std::vector<geomet
     }
 
     // ------------------------------------------------------------
-    // Step 4. Decay weights around selected peaks
+    // Step 3. Decay weights around selected peaks
     // final weight at each point = max contribution from selected peaks
     // ------------------------------------------------------------
     std::vector<double> final_weights(n, 0.0);
@@ -1048,33 +1063,68 @@ void TebLocalPlannerROS::updateCustomViaPointsContainer(const std::vector<geomet
         via_points_.emplace_back(point);
         via_points_weights_.push_back(weight);
 
-        ROS_DEBUG("Via-point added (NMS): pos=(%.2f, %.2f), radius=%.2f, raw=%.2f, final=%.2f",
-                  point.x(), point.y(), radius, raw_weights[i], weight);
+        ROS_INFO("Via-point added (NMS): pos=(%.2f, %.2f), radius=%.2f, weight=%.2f",point.x(), point.y(), radius, weight);
     }
-}
-// Helper function: Calculate via-point weight based on medial radius (narrowness)
-// Smaller radius (narrower) -> higher weight (more penalty for deviating from via-point)
-// Larger radius (wider) -> lower weight (more flexibility)
+  }
+
+  void TebLocalPlannerROS::applyViaPointNoNMS(
+      const std::vector<std::pair<int, std::pair<Eigen::Vector2d, double>>>& indexed_medial_points,
+      const std::vector<double>& raw_weights)
+  {
+    const double min_keep_weight = 0.5;
+    const int n = static_cast<int>(indexed_medial_points.size());
+
+    for (int i = 0; i < n; ++i)
+    {
+      const Eigen::Vector2d& point = indexed_medial_points[i].second.first;
+      double radius = indexed_medial_points[i].second.second;
+      double weight = raw_weights[i];
+
+      if (weight < min_keep_weight)
+        continue;
+
+      via_points_.emplace_back(point);
+      via_points_weights_.push_back(weight);
+
+      ROS_INFO("Via-point added (no NMS): pos=(%.2f, %.2f), radius=%.2f, weight=%.2f",point.x(), point.y(), radius, weight);
+    }
+  }
+
+// Helper function: dispatch the selected via-point weighting mode.
 double TebLocalPlannerROS::calculateViaPointWeight(double medial_radius) const
 {
-    // Adjustable thresholds for narrowness
-    double min_radius = 0.15;   // Below this: very narrow, use high weight
-    double max_radius = 1.0;    // Above this: not narrow, use low weight
-    
-    // Weight values
-    double high_weight = 10.0;   // Weight for very narrow passages (strong constraint)
-    double low_weight = 0.0;    // Weight for wide passages (weak constraint)
-    
-    // Linear interpolation based on radius
-    if (medial_radius <= min_radius)
-        return high_weight;
-    
-    if (medial_radius >= max_radius)
-        return low_weight;
-    
-    // Linear interpolation in between
-    double ratio = (medial_radius - min_radius) / (max_radius - min_radius);
-    return high_weight - ratio * (high_weight - low_weight);
+  if (cfg_.via_point_weight_mode == "step")
+    return calculateStepViaPointWeight(medial_radius);
+
+  return calculateLinearViaPointWeight(medial_radius);
+}
+
+double TebLocalPlannerROS::calculateLinearViaPointWeight(double medial_radius) const
+{
+  double min_radius = 0.15;
+  double max_radius = 1.0;
+  double high_weight = 10.0;
+  double low_weight = 0.0;
+
+  if (medial_radius <= min_radius)
+    return high_weight;
+
+  if (medial_radius >= max_radius)
+    return 0.0;
+
+  double ratio = (medial_radius - min_radius) / (max_radius - min_radius);
+  return high_weight - ratio * (high_weight - low_weight);
+}
+
+double TebLocalPlannerROS::calculateStepViaPointWeight(double medial_radius) const
+{
+  double max_radius = 1.0;
+  double high_weight = 10.0;
+
+  if (medial_radius >= max_radius)
+    return 0.0;
+
+  return high_weight;
 }
 
 void TebLocalPlannerROS::updateObstacleContainerWithCostmap()

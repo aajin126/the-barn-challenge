@@ -72,7 +72,7 @@ if __name__ == "__main__":
         launch_file,
         'world_name:=' + world_name,
         'gui:=' + ("true" if args.gui else "false")
-    ])#,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    ],stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     time.sleep(5)  # sleep to wait until the gazebo being created
     
     rospy.init_node('gym', anonymous=True) #, log_level=rospy.FATAL)
@@ -105,7 +105,7 @@ if __name__ == "__main__":
     nav_stack_process = subprocess.Popen([
         'roslaunch',
         launch_file,
-    ])#,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    ],stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
     # Make sure your navigation stack recives the correct goal position defined in GOAL_POSITION
     import actionlib
