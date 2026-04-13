@@ -105,7 +105,7 @@ if __name__ == "__main__":
     nav_stack_process = subprocess.Popen([
         'roslaunch',
         launch_file,
-    ])#,stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    ],stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
     # Make sure your navigation stack recives the correct goal position defined in GOAL_POSITION
     import actionlib
