@@ -903,21 +903,25 @@ void TebLocalPlannerROS::updateCustomViaPointsContainer(const std::vector<geomet
     const int n = static_cast<int>(indexed_medial_points.size());
 
     // ------------------------------------------------------------
-    // Compute raw weights
+    // Compute raw weights and collect radii
     // ------------------------------------------------------------
     std::vector<double> raw_weights(n, 0.0);
+    std::vector<double> radii(n, 0.0);
     for (int i = 0; i < n; ++i)
     {
-        double radius = indexed_medial_points[i].second.second;
-        raw_weights[i] = calculateViaPointWeight(radius);
+      double radius = indexed_medial_points[i].second.second;
+      radii[i] = radius;
+      raw_weights[i] = calculateViaPointWeight(radius);
     }
 
-    applyViaPointPostProcessing(indexed_medial_points, raw_weights);
+    // Pass radii to postprocessing for radius-based NMS
+    applyViaPointPostProcessing(indexed_medial_points, raw_weights, radii);
   }
 
   void TebLocalPlannerROS::applyViaPointPostProcessing(
     const std::vector<std::pair<int, std::pair<Eigen::Vector2d, double>>>& indexed_medial_points,
-    const std::vector<double>& raw_weights)
+    const std::vector<double>& raw_weights,
+    const std::vector<double>& radii)
   {
     if (cfg_.via_point_postprocess_mode == "no_nms")
     {
@@ -925,57 +929,55 @@ void TebLocalPlannerROS::updateCustomViaPointsContainer(const std::vector<geomet
       return;
     }
 
-    applyViaPointNMS(indexed_medial_points, raw_weights);
+    applyViaPointNMS(indexed_medial_points, raw_weights, radii);
   }
 
-  void TebLocalPlannerROS::applyViaPointNMS(
+    void TebLocalPlannerROS::applyViaPointNMS(
     const std::vector<std::pair<int, std::pair<Eigen::Vector2d, double>>>& indexed_medial_points,
-    const std::vector<double>& raw_weights)
-  {
+    const std::vector<double>& raw_weights,
+    const std::vector<double>& radii)
+    {
     const int n = static_cast<int>(indexed_medial_points.size());
 
     // ------------------------------------------------------------
-    // Step 1. Find local maxima in 1D sequence
-    // A point is a local peak if its raw weight is not smaller than neighbors
+    // Step 1. Find local maxima in radius
     // ------------------------------------------------------------
     std::vector<int> peak_candidates;
     peak_candidates.reserve(n);
-
     for (int i = 0; i < n; ++i)
     {
-        double curr = raw_weights[i];
-        double left  = (i > 0)     ? raw_weights[i - 1] : -std::numeric_limits<double>::infinity();
-        double right = (i < n - 1) ? raw_weights[i + 1] : -std::numeric_limits<double>::infinity();
-
-        if (curr >= left && curr >= right)
-            peak_candidates.push_back(i);
+      double curr = radii[i];
+      double left  = (i > 0)     ? radii[i - 1] : -std::numeric_limits<double>::infinity();
+      double right = (i < n - 1) ? radii[i + 1] : -std::numeric_limits<double>::infinity();
+      if (curr >= left && curr >= right)
+        peak_candidates.push_back(i);
     }
 
     if (peak_candidates.empty())
     {
-        // fallback: keep all with raw weight
-        for (int i = 0; i < n; ++i)
-        {
-            via_points_.emplace_back(indexed_medial_points[i].second.first);
-            via_points_weights_.push_back(raw_weights[i]);
-        }
-        return;
+      // fallback: keep all with raw weight
+      for (int i = 0; i < n; ++i)
+      {
+        via_points_.emplace_back(indexed_medial_points[i].second.first);
+        via_points_weights_.push_back(raw_weights[i]);
+      }
+      return;
     }
 
     // ------------------------------------------------------------
-    // Step 2. Greedy Non-Maximum Suppression on peaks
+    // Step 2. Greedy Non-Maximum Suppression on radius peaks
     // Keep stronger peaks, suppress weaker nearby peaks
     // ------------------------------------------------------------
     std::sort(peak_candidates.begin(), peak_candidates.end(),
-              [&](int a, int b)
-              {
-                  return raw_weights[a] > raw_weights[b];
-              });
+          [&](int a, int b)
+          {
+            return radii[a] > radii[b];
+          });
 
     // NMS parameters
-    const int peak_suppress_window = 5;   // nearby peak suppression in plan index
-    const int weight_decay_window  = 5;   // weight reduction window around selected peak
-    const double min_decay_scale   = 0.3; // at peak center, neighbors can be reduced to 30%
+    const int peak_suppress_window = 10;   // nearby peak suppression in plan index
+    const int weight_decay_window  = 10;   // weight reduction window around selected peak
+    const double min_decay_scale   = 0.5; // at peak center, neighbors can be reduced to 50%
     const double min_keep_weight   = 0.5; // discard overly weak points after suppression
 
     std::vector<bool> suppressed_peak(n, false);
@@ -984,88 +986,80 @@ void TebLocalPlannerROS::updateCustomViaPointsContainer(const std::vector<geomet
 
     for (int peak_idx : peak_candidates)
     {
-        if (suppressed_peak[peak_idx])
-            continue;
+      if (suppressed_peak[peak_idx])
+        continue;
 
-        selected_peaks.push_back(peak_idx);
+      selected_peaks.push_back(peak_idx);
 
-        int peak_plan_index = indexed_medial_points[peak_idx].first;
+      int peak_plan_index = indexed_medial_points[peak_idx].first;
 
-        // suppress weaker nearby peaks
-        for (int other_peak_idx : peak_candidates)
-        {
-            if (other_peak_idx == peak_idx)
-                continue;
+      // suppress weaker nearby peaks
+      for (int other_peak_idx : peak_candidates)
+      {
+        if (other_peak_idx == peak_idx)
+          continue;
 
-            int other_plan_index = indexed_medial_points[other_peak_idx].first;
-            if (std::abs(other_plan_index - peak_plan_index) <= peak_suppress_window)
-                suppressed_peak[other_peak_idx] = true;
-        }
+        int other_plan_index = indexed_medial_points[other_peak_idx].first;
+        if (std::abs(other_plan_index - peak_plan_index) <= peak_suppress_window)
+          suppressed_peak[other_peak_idx] = true;
+      }
     }
 
     // ------------------------------------------------------------
-    // Step 3. Decay weights around selected peaks
+    // Step 3. Decay weights around selected radius peaks
     // final weight at each point = max contribution from selected peaks
     // ------------------------------------------------------------
-    std::vector<double> final_weights(n, 0.0);
+    std::vector<double> final_weights = raw_weights;
 
     for (int peak_idx : selected_peaks)
     {
-        int peak_plan_index = indexed_medial_points[peak_idx].first;
-        double peak_weight = raw_weights[peak_idx];
+      int peak_plan_index = indexed_medial_points[peak_idx].first;
+      double peak_weight = raw_weights[peak_idx];
 
-        for (int i = 0; i < n; ++i)
+      for (int i = 0; i < n; ++i)
+      {
+        int plan_idx = indexed_medial_points[i].first;
+        int gap = std::abs(plan_idx - peak_plan_index);
+
+        if (gap == 0)
         {
-            int plan_idx = indexed_medial_points[i].first;
-            int gap = std::abs(plan_idx - peak_plan_index);
-
-            double contribution = 0.0;
-
-            if (gap == 0)
-            {
-                // peak itself keeps full weight
-                contribution = peak_weight;
-            }
-            else if (gap <= weight_decay_window)
-            {
-                // linear decay for neighbors
-                double ratio = static_cast<double>(gap) / static_cast<double>(weight_decay_window);
-                double scale = min_decay_scale + (1.0 - min_decay_scale) * ratio;
-                contribution = raw_weights[i] * scale;
-            }
-            else
-            {
-                // outside influence window: keep raw weight unchanged
-                contribution = raw_weights[i];
-            }
-
-            // combine conservatively: keep the largest surviving contribution
-            final_weights[i] = std::max(final_weights[i], contribution);
+          final_weights[i] = peak_weight;
         }
+        else if (gap <= weight_decay_window)
+        {
+          double ratio = static_cast<double>(gap) /
+                        static_cast<double>(weight_decay_window);
+          double scale = min_decay_scale + (1.0 - min_decay_scale) * ratio;
+
+          double decayed_weight = raw_weights[i] * scale;
+
+          final_weights[i] = std::min(final_weights[i], decayed_weight);
+        }
+      }
     }
 
     // If no selected peaks somehow, fallback to raw weights
     if (selected_peaks.empty())
-        final_weights = raw_weights;
+      final_weights = raw_weights;
 
     // ------------------------------------------------------------
     // Step 5. Export via-points
     // ------------------------------------------------------------
     for (int i = 0; i < n; ++i)
     {
-        const Eigen::Vector2d& point = indexed_medial_points[i].second.first;
-        double radius = indexed_medial_points[i].second.second;
-        double weight = final_weights[i];
+      const Eigen::Vector2d& point = indexed_medial_points[i].second.first;
+      double radius = indexed_medial_points[i].second.second;
+      double weight = final_weights[i];
 
-        if (weight < min_keep_weight)
-            continue;
+      if (weight < min_keep_weight)
+        continue;
 
-        via_points_.emplace_back(point);
-        via_points_weights_.push_back(weight);
+      via_points_.emplace_back(point);
+      via_points_weights_.push_back(weight);
 
-        ROS_INFO("Via-point added (NMS): pos=(%.2f, %.2f), radius=%.2f, weight=%.2f",point.x(), point.y(), radius, weight);
+      //ROS_INFO("Via-point added (NMS): index=%d, pos=(%.2f, %.2f), radius=%.2f, weight=%.2f", i, point.x(), point.y(), radius, weight);
     }
-  }
+    }
 
   void TebLocalPlannerROS::applyViaPointNoNMS(
       const std::vector<std::pair<int, std::pair<Eigen::Vector2d, double>>>& indexed_medial_points,

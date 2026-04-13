@@ -314,11 +314,11 @@ protected:
    */
   double calculateViaPointWeight(double medial_radius) const;
   double calculateLinearViaPointWeight(double medial_radius) const;
-  double calculateStepViaPointWeight(double medial_radius) const;
+  double calculateStepViaPointWeight(double medial_radius) const; 
   void applyViaPointPostProcessing(const std::vector<std::pair<int, std::pair<Eigen::Vector2d, double>>>& indexed_medial_points,
-                                   const std::vector<double>& raw_weights);
+                                   const std::vector<double>& raw_weights, const std::vector<double>& radii);
   void applyViaPointNMS(const std::vector<std::pair<int, std::pair<Eigen::Vector2d, double>>>& indexed_medial_points,
-                        const std::vector<double>& raw_weights);
+                        const std::vector<double>& raw_weights, const std::vector<double>& radii);
   void applyViaPointNoNMS(const std::vector<std::pair<int, std::pair<Eigen::Vector2d, double>>>& indexed_medial_points,
                           const std::vector<double>& raw_weights);
 

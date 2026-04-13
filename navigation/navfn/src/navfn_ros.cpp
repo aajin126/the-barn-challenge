@@ -81,6 +81,9 @@ namespace navfn {
       private_nh.param("planner_window_y", planner_window_y_, 0.0);
       private_nh.param("default_tolerance", default_tolerance_, 0.0);
 
+      // Plan cost mode: "meanmax" (default) or "original"
+      private_nh.param<std::string>("plan_cost_mode", plan_cost_mode_, "meanmax");
+
       make_plan_srv_ =  private_nh.advertiseService("make_plan", &NavfnROS::makePlanService, this);
 
       initialized_ = true;
@@ -295,35 +298,35 @@ namespace navfn {
         geometry_msgs::PoseStamped goal_copy = best_pose;
         goal_copy.header.stamp = ros::Time::now();
         candidate_plan.push_back(goal_copy);
-        // plan.push_back(goal_copy);
-          
-        bool keep_previous = false;
 
-        float prev_cost = 1e20f;
-        std::vector<geometry_msgs::PoseStamped> pruned_prev_plan;
-
-        if (have_prev_plan_)
-        {
-          pruned_prev_plan = prunePlanFromStart(prev_plan_, start);
-          prev_cost = evaluatePlanMeanMaxCost(pruned_prev_plan);
-        }
-
-        float current_cost = evaluatePlanMeanMaxCost(candidate_plan);
-
-        //ROS_INFO("Current plan cost: %f, Previous plan cost: %f", current_cost, prev_cost);
-
-        if (have_prev_plan_)
-        {
-          if (current_cost + switch_margin_ >= prev_cost)
-            keep_previous = true;
-        }
-
-        if (keep_previous)
-        {
-          plan = prev_plan_;
-        }
-        else
-        {
+        if (plan_cost_mode_ == "meanmax") {
+          bool keep_previous = false;
+          float prev_cost = 1e20f;
+          std::vector<geometry_msgs::PoseStamped> pruned_prev_plan;
+          if (have_prev_plan_)
+          {
+            pruned_prev_plan = prunePlanFromStart(prev_plan_, start);
+            prev_cost = evaluatePlanMeanMaxCost(pruned_prev_plan);
+          }
+          float current_cost = evaluatePlanMeanMaxCost(candidate_plan);
+          //ROS_INFO("Current plan cost: %f, Previous plan cost: %f", current_cost, prev_cost);
+          if (have_prev_plan_)
+          {
+            if (current_cost + switch_margin_ >= prev_cost)
+              keep_previous = true;
+          }
+          if (keep_previous)
+          {
+            plan = prev_plan_;
+          }
+          else
+          {
+            plan = candidate_plan;
+            prev_plan_ = candidate_plan;
+            have_prev_plan_ = true;
+          }
+        } else {
+          // original: always use new plan
           plan = candidate_plan;
           prev_plan_ = candidate_plan;
           have_prev_plan_ = true;
@@ -333,10 +336,10 @@ namespace navfn {
       {
         ROS_ERROR("Failed to get a plan from potential when a legal potential was found. This shouldn't happen.");
       }
-      }
-      else{
-        ROS_ERROR("Failed to get a plan from potential when a legal potential was found. This shouldn't happen.");
-      }
+    }
+    else{
+      ROS_ERROR("Failed to get a plan from potential when a legal potential was found. This shouldn't happen.");
+    }
 
     if (visualize_potential_)
     {

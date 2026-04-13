@@ -192,6 +192,7 @@ namespace navfn {
       int prev_plan_len_;
       bool have_prev_plan_;
       float switch_margin_;
+      std::string plan_cost_mode_;
   };
 };
 
