@@ -1080,7 +1080,7 @@ void TebLocalPlannerROS::updateCustomViaPointsContainer(const std::vector<geomet
       via_points_.emplace_back(point);
       via_points_weights_.push_back(weight);
 
-      ROS_INFO("Via-point added (no NMS): pos=(%.2f, %.2f), radius=%.2f, weight=%.2f",point.x(), point.y(), radius, weight);
+      //ROS_INFO("Via-point added (no NMS): pos=(%.2f, %.2f), radius=%.2f, weight=%.2f",point.x(), point.y(), radius, weight);
     }
   }
 
