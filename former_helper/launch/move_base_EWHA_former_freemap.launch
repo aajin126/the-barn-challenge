@@ -4,16 +4,16 @@
 <launch>
   <!-- <node pkg="rviz" type="rviz" name="rviz" args="-d $(find former_helper)/launch/rviz_config/barn_rviz.rviz"/> -->
 
-  <!-- <node name="map_server" pkg="map_server" type="map_server" args="$(find former_helper)/maps/free_map.yaml" output="screen">
-  </node> -->
+  <node name="map_server" pkg="map_server" type="map_server" args="$(find former_helper)/maps/free_map.yaml" output="screen">
+  </node>
 
   <node pkg="tf" type="static_transform_publisher" name="map_to_odom" args="0 0 0 0 0 0 map odom 10">
   </node>
 
   <!-- start SLAM -->
-  <node pkg="slam_toolbox" type="lifelong_slam_toolbox_node" name="slam_toolbox" output="screen">
+  <!-- <node pkg="slam_toolbox" type="lifelong_slam_toolbox_node" name="slam_toolbox" output="screen">
       <rosparam command="load" file="$(find slam_toolbox)/config/mapper_params_lifelong.yaml" />
-  </node>  
+  </node>   -->
 
   <arg name="cmd_vel_topic" default="/former_base_controller/cmd_vel" />
   <arg name="odom_topic" default="/former_base_controller/odom" />
