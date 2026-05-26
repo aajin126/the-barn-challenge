@@ -46,16 +46,16 @@ PLUGINLIB_EXPORT_CLASS(navfn::NavfnROS, nav_core::BaseGlobalPlanner)
 namespace navfn {
 
   NavfnROS::NavfnROS() 
-    : costmap_(NULL), planner_(), initialized_(false), allow_unknown_(true), prev_plan_len_(0), have_prev_plan_(false), switch_margin_(400.0f) {}
+    : costmap_(NULL),  planner_(), initialized_(false), allow_unknown_(true) {}
 
   NavfnROS::NavfnROS(std::string name, costmap_2d::Costmap2DROS* costmap_ros)
-    : costmap_(NULL), planner_(), initialized_(false), allow_unknown_(true), prev_plan_len_(0), have_prev_plan_(false), switch_margin_(400.0f) {
+    : costmap_(NULL),  planner_(), initialized_(false), allow_unknown_(true) {
       //initialize the planner
       initialize(name, costmap_ros);
   }
 
   NavfnROS::NavfnROS(std::string name, costmap_2d::Costmap2D* costmap, std::string global_frame)
-    : costmap_(NULL), planner_(), initialized_(false), allow_unknown_(true), prev_plan_len_(0), have_prev_plan_(false), switch_margin_(400.0f) {
+    : costmap_(NULL),  planner_(), initialized_(false), allow_unknown_(true) {
       //initialize the planner
       initialize(name, costmap, global_frame);
   }
@@ -80,9 +80,6 @@ namespace navfn {
       private_nh.param("planner_window_x", planner_window_x_, 0.0);
       private_nh.param("planner_window_y", planner_window_y_, 0.0);
       private_nh.param("default_tolerance", default_tolerance_, 0.0);
-
-      // Plan cost mode: "meanmax" (default) or "original"
-      private_nh.param<std::string>("plan_cost_mode", plan_cost_mode_, "meanmax");
 
       make_plan_srv_ =  private_nh.advertiseService("make_plan", &NavfnROS::makePlanService, this);
 
@@ -263,8 +260,8 @@ namespace navfn {
     planner_->setStart(map_goal);
     planner_->setGoal(map_start);
 
-    bool success = planner_->calcNavFnAstar();
-    //planner_->calcNavFnDijkstra(true);
+    //bool success = planner_->calcNavFnAstar();
+    planner_->calcNavFnDijkstra(true);
 
     double resolution = costmap_->getResolution();
     geometry_msgs::PoseStamped p, best_pose;
@@ -292,53 +289,15 @@ namespace navfn {
 
     if(found_legal){
       //extract the plan
-      std::vector<geometry_msgs::PoseStamped> candidate_plan;
-      if(getPlanFromPotential(best_pose, candidate_plan)){
+      if(getPlanFromPotential(best_pose, plan)){
         //make sure the goal we push on has the same timestamp as the rest of the plan
         geometry_msgs::PoseStamped goal_copy = best_pose;
         goal_copy.header.stamp = ros::Time::now();
-        candidate_plan.push_back(goal_copy);
-
-        if (plan_cost_mode_ == "meanmax") {
-          bool keep_previous = false;
-          float prev_cost = 1e20f;
-          std::vector<geometry_msgs::PoseStamped> pruned_prev_plan;
-          if (have_prev_plan_)
-          {
-            pruned_prev_plan = prunePlanFromStart(prev_plan_, start);
-            prev_cost = evaluatePlanMeanMaxCost(pruned_prev_plan);
-          }
-          float current_cost = evaluatePlanMeanMaxCost(candidate_plan);
-          //ROS_INFO("Current plan cost: %f, Previous plan cost: %f", current_cost, prev_cost);
-          if (have_prev_plan_)
-          {
-            if (current_cost + switch_margin_ >= prev_cost)
-              keep_previous = true;
-          }
-          if (keep_previous)
-          {
-            plan = prev_plan_;
-          }
-          else
-          {
-            plan = candidate_plan;
-            prev_plan_ = candidate_plan;
-            have_prev_plan_ = true;
-          }
-        } else {
-          // original: always use new plan
-          plan = candidate_plan;
-          prev_plan_ = candidate_plan;
-          have_prev_plan_ = true;
-        }
+        plan.push_back(goal_copy);
       }
-      else
-      {
+      else{
         ROS_ERROR("Failed to get a plan from potential when a legal potential was found. This shouldn't happen.");
       }
-    }
-    else{
-      ROS_ERROR("Failed to get a plan from potential when a legal potential was found. This shouldn't happen.");
     }
 
     if (visualize_potential_)
@@ -379,146 +338,6 @@ namespace navfn {
     publishPlan(plan, 0.0, 1.0, 0.0, 0.0);
 
     return !plan.empty();
-  }
-
-  std::vector<geometry_msgs::PoseStamped> NavfnROS::prunePlanFromStart(
-      const std::vector<geometry_msgs::PoseStamped>& plan,
-      const geometry_msgs::PoseStamped& start)
-  {
-    if (plan.empty())
-      return std::vector<geometry_msgs::PoseStamped>();
-
-    size_t closest_index = 0;
-    double closest_distance = DBL_MAX;
-
-    for (size_t i = 0; i < plan.size(); ++i)
-    {
-      const double dx = plan[i].pose.position.x - start.pose.position.x;
-      const double dy = plan[i].pose.position.y - start.pose.position.y;
-      const double distance = dx * dx + dy * dy;
-
-      if (distance < closest_distance)
-      {
-        closest_distance = distance;
-        closest_index = i;
-      }
-    }
-
-    std::vector<geometry_msgs::PoseStamped> pruned_plan;
-    pruned_plan.reserve(plan.size() - closest_index + 1);
-
-    geometry_msgs::PoseStamped start_pose = start;
-    start_pose.header.stamp = ros::Time::now();
-    pruned_plan.push_back(start_pose);
-
-    for (size_t i = closest_index; i < plan.size(); ++i)
-    {
-      const double dx = plan[i].pose.position.x - start.pose.position.x;
-      const double dy = plan[i].pose.position.y - start.pose.position.y;
-
-      if (dx * dx + dy * dy < 1e-6)
-        continue;
-
-      geometry_msgs::PoseStamped pose = plan[i];
-      pose.header.stamp = start_pose.header.stamp;
-      pruned_plan.push_back(pose);
-    }
-
-    return pruned_plan;
-  }
-
-  float NavfnROS::evaluatePlanCost(
-      const std::vector<geometry_msgs::PoseStamped>& plan) const
-  {
-    if (plan.empty())
-      return 1e20f;
-
-    const float collision_check_distance = 2.0f;
-
-    float total = 0.0f;
-    float accumulated_distance = 0.0f;
-
-    for (size_t i = 0; i < plan.size(); ++i)
-    {
-      unsigned int mx, my;
-      if (!costmap_->worldToMap(plan[i].pose.position.x,
-                                plan[i].pose.position.y,
-                                mx, my))
-        return 1e20f;
-
-      unsigned char c = costmap_->getCost(mx, my);
-
-      if (c >= costmap_2d::LETHAL_OBSTACLE)
-        return 1e20f;
-
-      total += static_cast<float>(c);
-
-      if (i + 1 >= plan.size())
-        break;
-
-      // accumulate distance along the plan
-      float dx = plan[i + 1].pose.position.x - plan[i].pose.position.x;
-      float dy = plan[i + 1].pose.position.y - plan[i].pose.position.y;
-      accumulated_distance += std::sqrt(dx * dx + dy * dy);
-
-      if (accumulated_distance >= collision_check_distance)
-        break;
-    }
-
-    return total;
-  }
-
-  float NavfnROS::evaluatePlanMeanMaxCost(
-      const std::vector<geometry_msgs::PoseStamped>& plan) const
-  {
-    if (plan.empty())
-      return 1e20f;
-
-    const float collision_check_distance = 5.0f;
-
-    float total_cost = 0.0f;
-    float max_cost = 0.0f;
-    float accumulated_distance = 0.0f;
-    int count = 0;
-
-    for (size_t i = 0; i < plan.size(); ++i)
-    {
-      unsigned int mx, my;
-      if (!costmap_->worldToMap(plan[i].pose.position.x,
-                                plan[i].pose.position.y,
-                                mx, my))
-        return 1e20f;
-
-      unsigned char c = costmap_->getCost(mx, my);
-
-      if (c >= costmap_2d::LETHAL_OBSTACLE)
-        return 1e20f;
-
-      float cost = static_cast<float>(c);
-      total_cost += cost;
-      max_cost = std::max(max_cost, cost);
-      ++count;
-
-      if (i + 1 >= plan.size())
-        break;
-
-      float dx = plan[i + 1].pose.position.x - plan[i].pose.position.x;
-      float dy = plan[i + 1].pose.position.y - plan[i].pose.position.y;
-      accumulated_distance += std::sqrt(dx * dx + dy * dy);
-
-      if (accumulated_distance >= collision_check_distance)
-        break;
-    }
-
-    if (count == 0)
-      return 1e20f;
-
-    float mean_cost = total_cost / static_cast<float>(count);
-
-    const float mean_weight = 1.0f;
-    const float max_weight  = 1.5f;
-
-    return mean_weight * mean_cost + max_weight * max_cost;
   }
 
   void NavfnROS::publishPlan(const std::vector<geometry_msgs::PoseStamped>& path, double r, double g, double b, double a){
@@ -582,13 +401,14 @@ namespace navfn {
 
     planner_->calcPath(costmap_->getSizeInCellsX() * 4);
 
+    //extract the plan
     float *x = planner_->getPathX();
     float *y = planner_->getPathY();
     int len = planner_->getPathLen();
     ros::Time plan_time = ros::Time::now();
 
-    for (int i = len - 1; i >= 0; --i)
-    {
+    for(int i = len - 1; i >= 0; --i){
+      //convert the plan to world coordinates
       double world_x, world_y;
       mapToWorld(x[i], y[i], world_x, world_y);
 
