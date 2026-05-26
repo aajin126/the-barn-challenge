@@ -12,7 +12,6 @@ meter_scoring: true
 
 #footprint: [[-0.21, -0.165], [-0.21, 0.165], [0.21, 0.165], [0.21, -0.165]] # jackal
 footprint: [[-0.17, -0.17], [-0.17, 0.17], [0.17, 0.17], [0.17, -0.17]] # former
-footprint_padding: 0.1
 
 plugins:
 - {name: obstacles_layer, type: "costmap_2d::ObstacleLayer"}

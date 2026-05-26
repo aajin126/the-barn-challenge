@@ -891,6 +891,9 @@ namespace navfn {
   int
     NavFn::calcPath(int n, int *st)
     {
+      // test write
+      //savemap("test");
+
       // check path arrays
       if (npathbuf < n)
       {
@@ -902,133 +905,174 @@ namespace navfn {
       }
 
       // set up start position at cell
+      // st is always upper left corner for 4-point bilinear interpolation 
       if (st == NULL) st = start;
-      int stc = st[1] * nx + st[0];
+      int stc = st[1]*nx + st[0];
 
       // set up offset
-      float dx = 0;
-      float dy = 0;
+      float dx=0;
+      float dy=0;
       npath = 0;
 
-      const float max_plan_dist_m = 10.0;     // [m]
-      const float map_resolution = 0.05;      // costmap/map resolution [m/cell]
-      const float max_plan_dist_cells = max_plan_dist_m / map_resolution;
-
-      float goal_dist_cells = hypot(goal[0] - st[0], goal[1] - st[1]);
-      bool goal_is_far = goal_dist_cells > max_plan_dist_cells;
-
-      float accumulated_dist = 0.0;
-      float prev_x = st[0];
-      float prev_y = st[1];
-
       // go for <n> cycles at most
-      for (int i = 0; i < n; i++)
+      for (int i=0; i<n; i++)
       {
         // check if near goal
-        int nearest_point = std::max(
-            0,
-            std::min(nx * ny - 1, stc + (int)round(dx) + (int)(nx * round(dy))));
-
+        int nearest_point=std::max(0,std::min(nx*ny-1,stc+(int)round(dx)+(int)(nx*round(dy))));
         if (potarr[nearest_point] < COST_NEUTRAL)
         {
           pathx[npath] = (float)goal[0];
           pathy[npath] = (float)goal[1];
 
-          return ++npath;
+          return ++npath;	// done!
         }
 
-        if (stc < nx || stc > ns - nx)
+        if (stc < nx || stc > ns-nx) // would be out of bounds
         {
           ROS_DEBUG("[PathCalc] Out of bounds");
           return 0;
         }
 
         // add to path
-        float cur_x = stc % nx + dx;
-        float cur_y = stc / nx + dy;
+        pathx[npath] = stc%nx + dx;
+        pathy[npath] = stc/nx + dy;
 
-        pathx[npath] = cur_x;
-        pathy[npath] = cur_y;
         npath++;
-
-        // ================================
-        // stop planning after fixed distance
-        // ================================
-        if (goal_is_far && npath > 1)
-        {
-          float step_dist = hypot(cur_x - prev_x, cur_y - prev_y);
-          accumulated_dist += step_dist;
-
-          if (accumulated_dist >= max_plan_dist_cells)
-          {
-            ROS_DEBUG("[PathCalc] Partial path complete. dist: %.2f cells, npath: %d", accumulated_dist, npath);
-
-            return npath;
-          }
-        }
-
-        prev_x = cur_x;
-        prev_y = cur_y;
-
+  
         bool oscillation_detected = false;
-        if (npath > 2 &&
-            pathx[npath - 1] == pathx[npath - 3] &&
-            pathy[npath - 1] == pathy[npath - 3])
+        if( npath > 2 &&
+            pathx[npath-1] == pathx[npath-3] &&
+            pathy[npath-1] == pathy[npath-3] )
         {
           ROS_DEBUG("[PathCalc] oscillation detected, attempting fix.");
+
           oscillation_detected = true;
         }
 
-        int stcnx = stc + nx;
-        int stcpx = stc - nx;
+        int stcnx = stc+nx;
+        int stcpx = stc-nx;
 
-        ROS_DEBUG("[Path] Pot fn boundary, following grid (%0.1f/%d)", potarr[stc], npath);
 
-        // check eight neighbors to find the lowest
-        int minc = stc;
-        int minp = potarr[stc];
+        // Grid base Astar
+        // // check for potentials at eight positions near cell
+        // if (potarr[stc] >= POT_HIGH ||
+        //     potarr[stc+1] >= POT_HIGH ||
+        //     potarr[stc-1] >= POT_HIGH ||
+        //     potarr[stcnx] >= POT_HIGH ||
+        //     potarr[stcnx+1] >= POT_HIGH ||
+        //     potarr[stcnx-1] >= POT_HIGH ||
+        //     potarr[stcpx] >= POT_HIGH ||
+        //     potarr[stcpx+1] >= POT_HIGH ||
+        //     potarr[stcpx-1] >= POT_HIGH ||
+        //     oscillation_detected)
+        // {
+          ROS_DEBUG("[Path] Pot fn boundary, following grid (%0.1f/%d)", potarr[stc], npath);
 
-        int st = stcpx - 1;
-        if (potarr[st] < minp) { minp = potarr[st]; minc = st; }
+          // check eight neighbors to find the lowest
+          int minc = stc;
+          int minp = potarr[stc];
+          int st = stcpx - 1;
+          if (potarr[st] < minp) {minp = potarr[st]; minc = st; }
+          st++;
+          if (potarr[st] < minp) {minp = potarr[st]; minc = st; }
+          st++;
+          if (potarr[st] < minp) {minp = potarr[st]; minc = st; }
+          st = stc-1;
+          if (potarr[st] < minp) {minp = potarr[st]; minc = st; }
+          st = stc+1;
+          if (potarr[st] < minp) {minp = potarr[st]; minc = st; }
+          st = stcnx-1;
+          if (potarr[st] < minp) {minp = potarr[st]; minc = st; }
+          st++;
+          if (potarr[st] < minp) {minp = potarr[st]; minc = st; }
+          st++;
+          if (potarr[st] < minp) {minp = potarr[st]; minc = st; }
+          stc = minc;
+          dx = 0;
+          dy = 0;
 
-        st++;
-        if (potarr[st] < minp) { minp = potarr[st]; minc = st; }
+          ROS_DEBUG("[Path] Pot: %0.1f  pos: %0.1f,%0.1f",
+              potarr[stc], pathx[npath-1], pathy[npath-1]);
 
-        st++;
-        if (potarr[st] < minp) { minp = potarr[st]; minc = st; }
+          if (potarr[stc] >= POT_HIGH)
+          {
+            ROS_DEBUG("[PathCalc] No path found, high potential");
+            return 0;
+          }
+        // }
 
-        st = stc - 1;
-        if (potarr[st] < minp) { minp = potarr[st]; minc = st; }
+        // // have a good gradient here
+        // else			
+        // {
 
-        st = stc + 1;
-        if (potarr[st] < minp) { minp = potarr[st]; minc = st; }
+        //   // get grad at four positions near cell
+        //   gradCell(stc);
+        //   gradCell(stc+1);
+        //   gradCell(stcnx);
+        //   gradCell(stcnx+1);
 
-        st = stcnx - 1;
-        if (potarr[st] < minp) { minp = potarr[st]; minc = st; }
 
-        st++;
-        if (potarr[st] < minp) { minp = potarr[st]; minc = st; }
+        //   // get interpolated gradient
+        //   float x1 = (1.0-dx)*gradx[stc] + dx*gradx[stc+1];
+        //   float x2 = (1.0-dx)*gradx[stcnx] + dx*gradx[stcnx+1];
+        //   float x = (1.0-dy)*x1 + dy*x2; // interpolated x
+        //   float y1 = (1.0-dx)*grady[stc] + dx*grady[stc+1];
+        //   float y2 = (1.0-dx)*grady[stcnx] + dx*grady[stcnx+1];
+        //   float y = (1.0-dy)*y1 + dy*y2; // interpolated y
 
-        st++;
-        if (potarr[st] < minp) { minp = potarr[st]; minc = st; }
+        //   if (fp_path)
+        //   {
+        //     fprintf(fp_path, "Iteration %d: Gradient at stc=%d: (%.2f,%.2f)\n", i, stc, gradx[stc], grady[stc]);
+        //     fprintf(fp_path, "Iteration %d: Gradient at stc+1=%d: (%.2f,%.2f)\n", i, stc+1, gradx[stc+1], grady[stc+1]);
+        //     fprintf(fp_path, "Iteration %d: Gradient at stcnx=%d: (%.2f,%.2f)\n", i, stcnx, gradx[stcnx], grady[stcnx]);
+        //     fprintf(fp_path, "Iteration %d: Gradient at stcnx+1=%d: (%.2f,%.2f)\n", i, stcnx+1, gradx[stcnx+1], grady[stcnx+1]);
+        //     fprintf(fp_path, "Iteration %d: Interpolated gradient: (x=%.3f, y=%.3f)\n", i, x, y);
+        //   }
 
-        stc = minc;
-        dx = 0;
-        dy = 0;
+        //   // show gradients
+        //   ROS_DEBUG("[Path] %0.2f,%0.2f  %0.2f,%0.2f  %0.2f,%0.2f  %0.2f,%0.2f; final x=%.3f, y=%.3f\n",
+        //             gradx[stc], grady[stc], gradx[stc+1], grady[stc+1], 
+        //             gradx[stcnx], grady[stcnx], gradx[stcnx+1], grady[stcnx+1],
+        //             x, y);
 
-        ROS_DEBUG("[Path] Pot: %0.1f  pos: %0.1f,%0.1f",
-                  potarr[stc], pathx[npath - 1], pathy[npath - 1]);
+        //   // check for zero gradient, failed
+        //   if (x == 0.0 && y == 0.0)
+        //   {
+        //     ROS_DEBUG("[PathCalc] Zero gradient");	  
+        //     if (fp_path) {
+        //       fprintf(fp_path, "Iteration %d: Zero gradient encountered, aborting path\n", i);
+        //       fclose(fp_path);
+        //     }
+        //     return 0;
+        //   }
 
-        if (potarr[stc] >= POT_HIGH)
-        {
-          ROS_DEBUG("[PathCalc] No path found, high potential");
-          return 0;
-        }
+        //   // move in the right direction
+        //   float ss = pathStep/hypot(x, y);
+        //   dx += x*ss;
+        //   dy += y*ss;
+
+        //   // check for overflow
+        //   if (dx > 1.0) { stc++; dx -= 1.0; }
+        //   if (dx < -1.0) { stc--; dx += 1.0; }
+        //   if (dy > 1.0) { stc+=nx; dy -= 1.0; }
+        //   if (dy < -1.0) { stc-=nx; dy += 1.0; }
+
+        // }
+
+        //      ROS_INFO("[Path] Pot: %0.1f  grad: %0.1f,%0.1f  pos: %0.1f,%0.1f\n",
+        //	     potarr[stc], x, y, pathx[npath-1], pathy[npath-1]);
       }
 
+      //  return npath;			// out of cycles, return failure
       ROS_DEBUG("[PathCalc] No path found, path too long");
-      return 0;
+
+      return 0;			// out of cycles, return failure
     }
+
+
+  //
+  // gradient calculations
+  //
 
   // calculate gradient at a cell
   // positive value are to the right and down
