@@ -163,7 +163,7 @@ void TebOptimalPlanner::registerG2OTypes()
   factory->registerType("EDGE_KINEMATICS_DIFF_DRIVE", new g2o::HyperGraphElementCreator<EdgeKinematicsDiffDrive>);
   factory->registerType("EDGE_KINEMATICS_CARLIKE", new g2o::HyperGraphElementCreator<EdgeKinematicsCarlike>);
   factory->registerType("EDGE_OBSTACLE", new g2o::HyperGraphElementCreator<EdgeObstacle>);
-  //factory->registerType("EDGE_INFLATED_OBSTACLE", new g2o::HyperGraphElementCreator<EdgeInflatedObstacle>);
+  factory->registerType("EDGE_INFLATED_OBSTACLE", new g2o::HyperGraphElementCreator<EdgeInflatedObstacle>);
   //factory->registerType("EDGE_DYNAMIC_OBSTACLE", new g2o::HyperGraphElementCreator<EdgeDynamicObstacle>);
   factory->registerType("EDGE_VIA_POINT", new g2o::HyperGraphElementCreator<EdgeViaPoint>);
   factory->registerType("EDGE_PREFER_ROTDIR", new g2o::HyperGraphElementCreator<EdgePreferRotDir>);
@@ -760,6 +760,7 @@ void TebOptimalPlanner::AddTEBVertices(int start_idx, int end_idx)
 
 void TebOptimalPlanner::AddEdgesObstacles(double weight_multiplier)
 {
+  ROS_INFO("ADD EDGES OBSTACLES");
   if (cfg_->optim.weight_obstacle==0 || weight_multiplier==0 || obstacles_==nullptr )
     return; // if weight equals zero skip adding edges!
     
@@ -857,10 +858,12 @@ void TebOptimalPlanner::AddEdgesObstacles(double weight_multiplier)
       if (left_obstacle)
       {
         iter_obstacle->push_back(left_obstacle);
+        ROS_INFO("Vertex %d: Adding left obstacle with distance %f", i, left_min_dist);
       }
       if (right_obstacle)
       {
         iter_obstacle->push_back(right_obstacle);
+        ROS_INFO("Vertex %d: Adding right obstacle with distance %f", i, right_min_dist);
       }
 
       // continue here to ignore obstacles for the first pose, but use them later to create the EdgeVelocityObstacleRatio edges
@@ -1004,16 +1007,18 @@ void TebOptimalPlanner::AddEdgesDynamicObstacles(double weight_multiplier)
 
 void TebOptimalPlanner::AddEdgesViaPoints()
 {
-  ROS_DEBUG("ADD EDGES VIA POINTS");
+  
   if (cfg_->optim.weight_viapoint==0 || via_points_==NULL || via_points_->empty() )
     return; // if weight equals zero skip adding edges!
 
   int start_pose_idx = 0;
-  ROS_DEBUG("START ADDING VIA POINTS");
+
   int n = teb_.sizePoses();
   if (n<3) // we do not have any degrees of freedom for reaching via-points
     return;
   
+  ROS_INFO("ADD EDGES VIA POINTS");
+
   int vp_idx = 0;  // Index for tracking corresponding via-point weights
   for (ViaPointContainer::const_iterator vp_it = via_points_->begin(); vp_it != via_points_->end(); ++vp_it, ++vp_idx)
   {

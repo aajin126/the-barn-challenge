@@ -1143,9 +1143,11 @@ void TebLocalPlannerROS::updateObstacleContainerWithCostmap()
             continue;
             
           obstacles_.push_back(ObstaclePtr(new PointObstacle(obs)));
+          ROS_INFO("Added PointObstacle at (%.3f, %.3f)", obs.x(), obs.y());
         }
       }
     }
+    ROS_INFO("Total obstacles: %lu", obstacles_.size());
   }
 }
 

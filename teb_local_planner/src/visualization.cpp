@@ -452,6 +452,7 @@ void TebVisualization::publishObstacles(const ObstContainer& obstacles, double s
     marker.action = visualization_msgs::Marker::ADD;
     marker.lifetime = ros::Duration(2.0);
     
+    
     for (ObstContainer::const_iterator obst = obstacles.begin(); obst != obstacles.end(); ++obst)
     {
       boost::shared_ptr<PointObstacle> pobst = boost::dynamic_pointer_cast<PointObstacle>(*obst);      

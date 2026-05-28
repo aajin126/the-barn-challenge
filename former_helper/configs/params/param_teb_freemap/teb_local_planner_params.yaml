@@ -48,19 +48,21 @@ TebLocalPlannerROS:
     
  # Obstacles
     
- min_obstacle_dist: 0.13 # This value must also include our robot radius, since footprint_model is set to "point".
- inflation_dist: 0.1
+ min_obstacle_dist: 0.17 # This value must also include our robot radius, since footprint_model is set to "point".
+ inflation_dist: 0.3
  dynamic_obstacle_inflation_dist: 0.22
  include_dynamic_obstacles: False
  include_costmap_obstacles: True
  costmap_obstacles_behind_robot_dist: 0.15
  obstacle_poses_affected: 30
+ obstacle_association_force_inclusion_factor: 1.0
+ obstacle_association_cutoff_factor: 7.0
  # costmap_converter parameters are defined in costmap_converter_params.yaml
  costmap_converter_plugin: ""
 
  # Optimization
 
- global_plan_viapoint_sep: 0.3
+ global_plan_viapoint_sep: 0.4
  via_point_weight_mode: step
  via_point_postprocess_mode: no_nms
  no_inner_iterations: 5
@@ -72,8 +74,8 @@ TebLocalPlannerROS:
  weight_max_vel_theta: 1
  weight_acc_lim_x: 2
  weight_acc_lim_theta: 2
- weight_kinematics_nh: 1000
- weight_kinematics_forward_drive: 100
+ weight_kinematics_nh: 100
+ weight_kinematics_forward_drive: 500
  weight_kinematics_turning_radius: 1
  weight_viapoint: 100.0   
  weight_optimaltime: 10.0
