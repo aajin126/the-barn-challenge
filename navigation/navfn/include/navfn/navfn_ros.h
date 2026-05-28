@@ -193,6 +193,10 @@ namespace navfn {
       bool have_prev_plan_;
       float switch_margin_;
       std::string plan_cost_mode_;
+
+      geometry_msgs::PoseStamped makeSubGoal(const geometry_msgs::PoseStamped& start,
+                                             const geometry_msgs::PoseStamped& goal,
+                                             double sub_goal_distance);
   };
 };
 
