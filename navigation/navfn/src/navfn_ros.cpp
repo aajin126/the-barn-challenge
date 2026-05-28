@@ -217,7 +217,7 @@ namespace navfn {
     double target_dist = std::min(sub_goal_distance, total_dist);
     const double step = costmap_->getResolution();
 
-    for (double d = target_dist; d >= sub_goal_distance / 2; d -= step) {
+    for (double d = target_dist; d < total_dist; d += step) {
       const double x = sx + ux * d;
       const double y = sy + uy * d;
 
@@ -296,25 +296,22 @@ namespace navfn {
     wx = goal.pose.position.x;
     wy = goal.pose.position.y;
 
-    geometry_msgs::PoseStamped current_goal;
-
+    
     if (!costmap_->worldToMap(wx, wy, mx, my)) {
       if (tolerance <= 0.0) {
         ROS_WARN_THROTTLE(1.0, "The goal sent to the navfn planner is off the global costmap. "
-                               "Planning will always fail to this goal.");
-        return false;
-      }
+          "Planning will always fail to this goal.");
+          return false;
+        }
+        
+      } 
+    geometry_msgs::PoseStamped current_goal = makeSubGoal(start, goal, 5);
 
-      geometry_msgs::PoseStamped sub_goal = makeSubGoal(start, goal, 20);
-
-      if (!costmap_->worldToMap(sub_goal.pose.position.x, sub_goal.pose.position.y, mx, my)) {
-        mx = 0;
-        my = 0;
-      }
-      current_goal = sub_goal;
-    } else {
-      current_goal = goal;
+    if (!costmap_->worldToMap(current_goal.pose.position.x, current_goal.pose.position.y, mx, my)) {
+      mx = 0;
+      my = 0;
     }
+
 
     int map_goal[2];
     map_goal[0] = mx;
