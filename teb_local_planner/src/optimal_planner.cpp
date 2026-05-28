@@ -857,12 +857,10 @@ void TebOptimalPlanner::AddEdgesObstacles(double weight_multiplier)
       if (left_obstacle)
       {
         iter_obstacle->push_back(left_obstacle);
-        ROS_INFO("Vertex %d: Adding left obstacle with distance %f", i, left_min_dist);
       }
       if (right_obstacle)
       {
         iter_obstacle->push_back(right_obstacle);
-        ROS_INFO("Vertex %d: Adding right obstacle with distance %f", i, right_min_dist);
       }
 
       // continue here to ignore obstacles for the first pose, but use them later to create the EdgeVelocityObstacleRatio edges
