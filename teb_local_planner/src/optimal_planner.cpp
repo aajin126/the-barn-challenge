@@ -760,7 +760,6 @@ void TebOptimalPlanner::AddTEBVertices(int start_idx, int end_idx)
 
 void TebOptimalPlanner::AddEdgesObstacles(double weight_multiplier)
 {
-  ROS_INFO("ADD EDGES OBSTACLES");
   if (cfg_->optim.weight_obstacle==0 || weight_multiplier==0 || obstacles_==nullptr )
     return; // if weight equals zero skip adding edges!
     
@@ -1016,8 +1015,6 @@ void TebOptimalPlanner::AddEdgesViaPoints()
   int n = teb_.sizePoses();
   if (n<3) // we do not have any degrees of freedom for reaching via-points
     return;
-  
-  ROS_INFO("ADD EDGES VIA POINTS");
 
   int vp_idx = 0;  // Index for tracking corresponding via-point weights
   for (ViaPointContainer::const_iterator vp_it = via_points_->begin(); vp_it != via_points_->end(); ++vp_it, ++vp_idx)
