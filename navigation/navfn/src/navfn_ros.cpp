@@ -190,6 +190,58 @@ namespace navfn {
     wy = costmap_->getOriginY() + my * costmap_->getResolution();
   }
 
+  geometry_msgs::PoseStamped NavfnROS::makeSubGoal(const geometry_msgs::PoseStamped& start,
+                                                   const geometry_msgs::PoseStamped& goal,
+                                                   double sub_goal_distance) {
+    geometry_msgs::PoseStamped sub_goal = goal;
+    sub_goal.header.frame_id = global_frame_;
+    sub_goal.header.stamp = ros::Time::now();
+
+    const double sx = start.pose.position.x;
+    const double sy = start.pose.position.y;
+    const double gx = goal.pose.position.x;
+    const double gy = goal.pose.position.y;
+
+    const double dx = gx - sx;
+    const double dy = gy - sy;
+    const double total_dist = hypot(dx, dy);
+
+    if (total_dist < sub_goal_distance) {
+      sub_goal.header.stamp = ros::Time::now();
+      return sub_goal;
+    }
+
+    const double ux = dx / total_dist;
+    const double uy = dy / total_dist;
+
+    double target_dist = std::min(sub_goal_distance, total_dist);
+    const double step = costmap_->getResolution();
+
+    for (double d = target_dist; d >= sub_goal_distance / 2; d -= step) {
+      const double x = sx + ux * d;
+      const double y = sy + uy * d;
+
+      unsigned int mx, my;
+      if (!costmap_->worldToMap(x, y, mx, my)) {
+        continue;
+      }
+
+      const unsigned char cost = costmap_->getCost(mx, my);
+
+      if (cost != costmap_2d::NO_INFORMATION && cost < costmap_2d::INSCRIBED_INFLATED_OBSTACLE) {
+        sub_goal.pose.position.x = x;
+        sub_goal.pose.position.y = y;
+        sub_goal.pose.position.z = start.pose.position.z;
+
+        return sub_goal;
+      }
+    }
+
+    sub_goal = start;
+    sub_goal.header.stamp = ros::Time::now();
+    return sub_goal;
+  }
+
   bool NavfnROS::makePlan(const geometry_msgs::PoseStamped& start, 
       const geometry_msgs::PoseStamped& goal, std::vector<geometry_msgs::PoseStamped>& plan){
     return makePlan(start, goal, default_tolerance_, plan);
@@ -244,13 +296,24 @@ namespace navfn {
     wx = goal.pose.position.x;
     wy = goal.pose.position.y;
 
-    if(!costmap_->worldToMap(wx, wy, mx, my)){
-      if(tolerance <= 0.0){
-        ROS_WARN_THROTTLE(1.0, "The goal sent to the navfn planner is off the global costmap. Planning will always fail to this goal.");
+    geometry_msgs::PoseStamped current_goal;
+
+    if (!costmap_->worldToMap(wx, wy, mx, my)) {
+      if (tolerance <= 0.0) {
+        ROS_WARN_THROTTLE(1.0, "The goal sent to the navfn planner is off the global costmap. "
+                               "Planning will always fail to this goal.");
         return false;
       }
-      mx = 0;
-      my = 0;
+
+      geometry_msgs::PoseStamped sub_goal = makeSubGoal(start, goal, 20);
+
+      if (!costmap_->worldToMap(sub_goal.pose.position.x, sub_goal.pose.position.y, mx, my)) {
+        mx = 0;
+        my = 0;
+      }
+      current_goal = sub_goal;
+    } else {
+      current_goal = goal;
     }
 
     int map_goal[2];
@@ -265,18 +328,18 @@ namespace navfn {
 
     double resolution = costmap_->getResolution();
     geometry_msgs::PoseStamped p, best_pose;
-    p = goal;
+    p = current_goal;
 
     bool found_legal = false;
     double best_sdist = DBL_MAX;
 
-    p.pose.position.y = goal.pose.position.y - tolerance;
+    p.pose.position.y = current_goal.pose.position.y - tolerance;
 
-    while(p.pose.position.y <= goal.pose.position.y + tolerance){
-      p.pose.position.x = goal.pose.position.x - tolerance;
-      while(p.pose.position.x <= goal.pose.position.x + tolerance){
+    while (p.pose.position.y <= current_goal.pose.position.y + tolerance) {
+      p.pose.position.x = current_goal.pose.position.x - tolerance;
+      while (p.pose.position.x <= current_goal.pose.position.x + tolerance) {
         double potential = getPointPotential(p.pose.position);
-        double sdist = sq_distance(p, goal);
+        double sdist = sq_distance(p, current_goal);
         if(potential < POT_HIGH && sdist < best_sdist){
           best_sdist = sdist;
           best_pose = p;
