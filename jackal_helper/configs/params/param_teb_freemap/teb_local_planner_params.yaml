@@ -12,7 +12,7 @@ recovery_behaviors:
 TebLocalPlannerROS:
 
  odom_topic: odom
- map_frame: odom
+ map_frame: map
     
  # Trajectory
   
@@ -31,8 +31,8 @@ TebLocalPlannerROS:
  max_vel_x_backwards: 0.0
  max_vel_y: 0.0
  max_vel_theta: 1.57
- acc_lim_x: 8.0
- acc_lim_theta: 10.0
+ acc_lim_x: 1.0
+ acc_lim_theta: 1.0
  min_turning_radius: 0.0 # diff-drive robot (can turn on place!)
 
  footprint_model:
@@ -50,7 +50,7 @@ TebLocalPlannerROS:
  min_obstacle_dist: 0.13 # This value must also include our robot radius, since footprint_model is set to "point".
  inflation_dist: 0.1
  dynamic_obstacle_inflation_dist: 0.22
- include_dynamic_obstacles: True
+ include_dynamic_obstacles: False
  include_costmap_obstacles: True
  costmap_obstacles_behind_robot_dist: 0.15
  obstacle_poses_affected: 30
@@ -71,10 +71,10 @@ TebLocalPlannerROS:
  weight_max_vel_theta: 1
  weight_acc_lim_x: 2
  weight_acc_lim_theta: 2
- weight_kinematics_nh: 100
- weight_kinematics_forward_drive: 700
+ weight_kinematics_nh: 1000
+ weight_kinematics_forward_drive: 100
  weight_kinematics_turning_radius: 1
- weight_viapoint: 3.0   
+ weight_viapoint: 100.0   
  weight_optimaltime: 10.0
  weight_obstacle: 15
  weight_inflation: 0.3
