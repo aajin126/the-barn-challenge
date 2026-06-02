@@ -1606,51 +1606,51 @@ bool TebOptimalPlanner::isTrajectoryFeasible(base_local_planner::CostmapModel* c
     }
   }
 
-  // for (int i=0; i <= look_ahead_idx; ++i)
-  // {           
-  //   if ( costmap_model->footprintCost(teb().Pose(i).x(), teb().Pose(i).y(), teb().Pose(i).theta(), footprint_spec, inscribed_radius, circumscribed_radius) == -1 )
-  //   {
-  //     if (visualization_)
-  //     {
-  //       visualization_->publishInfeasibleRobotPose(teb().Pose(i), *cfg_->robot_model, footprint_spec);
-  //     }
-  //     ROS_INFO("Trajectory is not feasible!");
-  //     return false;
-  //   }
-  //   // Checks if the distance between two poses is higher than the robot radius or the orientation diff is bigger than the specified threshold
-  //   // and interpolates in that case.
-  //   // // (if obstacles are pushing two consecutive poses away, the center between two consecutive poses might coincide with the obstacle ;-)!
-  //   // if (i<look_ahead_idx)
-  //   // {
-  //   //   double delta_rot = g2o::normalize_theta(g2o::normalize_theta(teb().Pose(i+1).theta()) -
-  //   //                                           g2o::normalize_theta(teb().Pose(i).theta()));
-  //   //   Eigen::Vector2d delta_dist = teb().Pose(i+1).position()-teb().Pose(i).position();
-  //   //   if(fabs(delta_rot) > cfg_->trajectory.min_resolution_collision_check_angular || delta_dist.norm() > inscribed_radius)
-  //   //   {
-  //   //     int n_additional_samples = std::max(std::ceil(fabs(delta_rot) / cfg_->trajectory.min_resolution_collision_check_angular), 
-  //   //                                         std::ceil(delta_dist.norm() / inscribed_radius)) - 1;
-  //   //     PoseSE2 intermediate_pose = teb().Pose(i);
-  //   //     for(int step = 0; step < n_additional_samples; ++step)
-  //   //     {
-  //   //       ROS_INFO("check for intermediate pose after optimization");
+  for (int i=0; i <= look_ahead_idx; ++i)
+  {           
+    if ( costmap_model->footprintCost(teb().Pose(i).x(), teb().Pose(i).y(), teb().Pose(i).theta(), footprint_spec, inscribed_radius, circumscribed_radius) == -1 )
+    {
+      if (visualization_)
+      {
+        visualization_->publishInfeasibleRobotPose(teb().Pose(i), *cfg_->robot_model, footprint_spec);
+      }
+      ROS_INFO("Trajectory is not feasible!");
+      return false;
+    }
+    // Checks if the distance between two poses is higher than the robot radius or the orientation diff is bigger than the specified threshold
+    // and interpolates in that case.
+    // // (if obstacles are pushing two consecutive poses away, the center between two consecutive poses might coincide with the obstacle ;-)!
+    // if (i<look_ahead_idx)
+    // {
+    //   double delta_rot = g2o::normalize_theta(g2o::normalize_theta(teb().Pose(i+1).theta()) -
+    //                                           g2o::normalize_theta(teb().Pose(i).theta()));
+    //   Eigen::Vector2d delta_dist = teb().Pose(i+1).position()-teb().Pose(i).position();
+    //   if(fabs(delta_rot) > cfg_->trajectory.min_resolution_collision_check_angular || delta_dist.norm() > inscribed_radius)
+    //   {
+    //     int n_additional_samples = std::max(std::ceil(fabs(delta_rot) / cfg_->trajectory.min_resolution_collision_check_angular), 
+    //                                         std::ceil(delta_dist.norm() / inscribed_radius)) - 1;
+    //     PoseSE2 intermediate_pose = teb().Pose(i);
+    //     for(int step = 0; step < n_additional_samples; ++step)
+    //     {
+    //       ROS_INFO("check for intermediate pose after optimization");
 
-  //   //       intermediate_pose.position() = intermediate_pose.position() + delta_dist / (n_additional_samples + 1.0);
-  //   //       intermediate_pose.theta() = g2o::normalize_theta(intermediate_pose.theta() + 
-  //   //                                                        delta_rot / (n_additional_samples + 1.0));
+    //       intermediate_pose.position() = intermediate_pose.position() + delta_dist / (n_additional_samples + 1.0);
+    //       intermediate_pose.theta() = g2o::normalize_theta(intermediate_pose.theta() + 
+    //                                                        delta_rot / (n_additional_samples + 1.0));
 
-  //   //       if ( costmap_model->footprintCost(intermediate_pose.x(), intermediate_pose.y(), intermediate_pose.theta(),
-  //   //         footprint_spec, inscribed_radius, circumscribed_radius) == -1 )
-  //   //       {
-  //   //         if (visualization_) 
-  //   //         {
-  //   //           visualization_->publishInfeasibleRobotPose(intermediate_pose, *cfg_->robot_model, footprint_spec);
-  //   //         }
-  //   //         return false;
-  //   //       }
-  //   //     }
-  //   //   }
-  //   // }
-  // }
+    //       if ( costmap_model->footprintCost(intermediate_pose.x(), intermediate_pose.y(), intermediate_pose.theta(),
+    //         footprint_spec, inscribed_radius, circumscribed_radius) == -1 )
+    //       {
+    //         if (visualization_) 
+    //         {
+    //           visualization_->publishInfeasibleRobotPose(intermediate_pose, *cfg_->robot_model, footprint_spec);
+    //         }
+    //         return false;
+    //       }
+    //     }
+    //   }
+    // }
+  }
   return true;
 }
 
